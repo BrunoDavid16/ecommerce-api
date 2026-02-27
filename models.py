@@ -5,7 +5,7 @@ from database import Base
 
 # ----------------- Pydantic Schemas -----------------
 
-class Usuario(BaseModel):
+class User(BaseModel):
     email: str
     senha: str
 
@@ -26,7 +26,7 @@ class Pedido(BaseModel):
 
 # ----------------- SQLAlchemy Models -----------------
 
-class UsuarioModel(Base):
+class UserModel(Base):
     __tablename__ = "usuarios"
 
     id = Column(Integer, primary_key=True, index=True)

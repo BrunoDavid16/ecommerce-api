@@ -1,20 +1,15 @@
-# schemas.py
-
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 
-
-# -------- USER --------
+# ----------- USER -----------
 
 class UserCreate(BaseModel):
     email: EmailStr
     senha: str
 
-
 class UserLogin(BaseModel):
     email: EmailStr
     senha: str
-
 
 class UserResponse(BaseModel):
     id: int
@@ -24,19 +19,10 @@ class UserResponse(BaseModel):
         from_attributes = True
 
 
-# -------- PRODUCT --------
+# ----------- PRODUTO -----------
 
-class ProductCreate(BaseModel):
+class Produto(BaseModel):
     nome: str
-    descricao: Optional[str] = None
     preco: float
-
-
-class ProductResponse(BaseModel):
-    id: int
-    nome: str
-    descricao: Optional[str]
-    preco: float
-
-    class Config:
-        from_attributes = True
+    estoque: int
+    categoria: Optional[str] = None

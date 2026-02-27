@@ -1,18 +1,14 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import SessionLocal, engine
-from schemas import UserCreate, UserLogin, UserResponse
 from models import (
     Base,
-    Usuario,
-    UsuarioModel,
-    Produto,
+    UserModel,
     ProdutoModel,
-    Carrinho,
     CarrinhoModel,
-    Pedido,
     PedidoModel
 )
+from schemas import UserCreate, UserLogin, UserResponse, Produto
 from auth import hash_senha, verificar_senha, criar_token, verificar_token
 
 Base.metadata.create_all(bind=engine)
@@ -28,36 +24,18 @@ def get_db():
     finally:
         db.close()
 
-# ----------------- Auth -----------------
-
-from fastapi import Depends, HTTPException
-from sqlalchemy.orm import Session
-from database import SessionLocal
-from models import User
-from schemas import UserCreate, UserResponse
-from auth import hash_senha
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
+# ----------------- Registro -----------------
 
 @app.post("/register", response_model=UserResponse)
 def register(user: UserCreate, db: Session = Depends(get_db)):
 
-    # Verifica se email já existe
-    usuario_existente = db.query(User).filter(User.email == user.email).first()
+    usuario_existente = db.query(UserModel).filter(UserModel.email == user.email).first()
     if usuario_existente:
         raise HTTPException(status_code=400, detail="Email já cadastrado")
 
-    # Cria novo usuário
-    novo_usuario = User(
+    novo_usuario = UserModel(
         email=user.email,
-        senha=hash_senha(user.senha)
+        senha_hash=hash_senha(user.senha)
     )
 
     db.add(novo_usuario)
@@ -66,19 +44,17 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
 
     return novo_usuario
 
-from schemas import UserLogin
-from auth import verificar_senha, criar_token
-
+# ----------------- Login -----------------
 
 @app.post("/login")
 def login(user: UserLogin, db: Session = Depends(get_db)):
 
-    usuario = db.query(User).filter(User.email == user.email).first()
+    usuario = db.query(UserModel).filter(UserModel.email == user.email).first()
 
     if not usuario:
         raise HTTPException(status_code=401, detail="Credenciais inválidas")
 
-    if not verificar_senha(user.senha, usuario.senha):
+    if not verificar_senha(user.senha, usuario.senha_hash):
         raise HTTPException(status_code=401, detail="Credenciais inválidas")
 
     token = criar_token({"sub": usuario.email})
