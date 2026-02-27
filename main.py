@@ -1,107 +1,92 @@
+from fastapi import FastAPI, Depends, HTTPException
+from sqlalchemy.orm import Session
 from database import SessionLocal, engine
-from fastapi import FastAPI
-from auth import hash_senha, verificar_senha, criar_token
-from models import Usuario, UsuarioModel, Produto, ProdutoModel, Carrinho, CarrinhoModel, Pedido, PedidoModel
+from models import (
+    Base,
+    Usuario,
+    UsuarioModel,
+    Produto,
+    ProdutoModel,
+    Carrinho,
+    CarrinhoModel,
+    Pedido,
+    PedidoModel
+)
+from auth import hash_senha, verificar_senha, criar_token, verificar_token
+
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
-@app.post("/register")
-def registrar(usuario: Usuario):
+# ----------------- Dependência de DB -----------------
+
+def get_db():
     db = SessionLocal()
-    db_usuario = UsuarioModel(email=usuario.email, senha_hash=hash_senha(usuario.senha))
-    db.add(db_usuario)
+    try:
+        yield db
+    finally:
+        db.close()
+
+# ----------------- Auth -----------------
+
+@app.post("/register")
+def registrar(usuario: Usuario, db: Session = Depends(get_db)):
+    usuario_existente = db.query(UsuarioModel).filter(UsuarioModel.email == usuario.email).first()
+    if usuario_existente:
+        raise HTTPException(status_code=400, detail="Email já cadastrado")
+
+    novo_usuario = UsuarioModel(
+        email=usuario.email,
+        senha_hash=hash_senha(usuario.senha)
+    )
+    db.add(novo_usuario)
     db.commit()
-    db.close()
-    return usuario
+    return {"mensagem": "Usuário criado com sucesso"}
 
 @app.post("/login")
-def login(usuario: Usuario):
-    db = SessionLocal()
+def login(usuario: Usuario, db: Session = Depends(get_db)):
     db_usuario = db.query(UsuarioModel).filter(UsuarioModel.email == usuario.email).first()
+
+    if not db_usuario:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+
     if not verificar_senha(usuario.senha, db_usuario.senha_hash):
-        return {"erro": "Senha incorreta"}
+        raise HTTPException(status_code=401, detail="Senha incorreta")
+
     token = criar_token({"sub": usuario.email})
     return {"access_token": token}
 
+# ----------------- Produtos -----------------
+
 @app.get("/produtos")
-def listar_produtos():
-    db = SessionLocal()
-    produtos = db.query(ProdutoModel).all()
-    db.close()
-    return produtos
+def listar_produtos(db: Session = Depends(get_db)):
+    return db.query(ProdutoModel).all()
 
 @app.post("/produtos")
-def criar_produto(produto: Produto):
-    db = SessionLocal()
-    db_produto = ProdutoModel(
-        nome=produto.nome,
-        preco=produto.preco,
-        estoque=produto.estoque,
-        categoria=produto.categoria,
-    )
+def criar_produto(
+    produto: Produto,
+    db: Session = Depends(get_db),
+    user=Depends(verificar_token)
+):
+    db_produto = ProdutoModel(**produto.dict())
     db.add(db_produto)
     db.commit()
-    db.close()
-    return {
-        "nome": produto.nome,
-        "preco": produto.preco,
-        "estoque": produto.estoque,
-        "categoria": produto.categoria,
-    }
+    db.refresh(db_produto)
+    return db_produto
 
-@app.get("/carrinhos")
-def listar_carrinhos():
-    db = SessionLocal()
-    carrinhos = db.query(CarrinhoModel).all()
-    db.close()
-    return carrinhos
+# ----------------- Carrinho -----------------
 
-@app.post("/carrinhos")
-def criar_carrinho(carrinho: Carrinho):
-    db = SessionLocal()
-    db_carrinho = CarrinhoModel(
-        usuario_id=carrinho.usuario_id,
-        produto_id=carrinho.produto_id,
-    )
-    db.add(db_carrinho)
-    db.commit()
-    db.close()
-    return {
-        "usuario_id": carrinho.usuario_id,
-        "produto_id": carrinho.produto_id,
-    }
+@app.delete("/carrinhos/{carrinho_id}")
+def delete_carrinho(
+    carrinho_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(verificar_token)
+):
+    carrinho = db.query(CarrinhoModel).filter(CarrinhoModel.id == carrinho_id).first()
 
-@app.delete("/carrinhos/{carinho_id}")
-def delete_carrinho(carrinho_id: int):
-    db = SessionLocal()
-    carrinho =db.query(CarrinhoModel).filter(CarrinhoModel.id == carrinho_id).first()
+    if not carrinho:
+        raise HTTPException(status_code=404, detail="Carrinho não encontrado")
+
     db.delete(carrinho)
     db.commit()
-    db.close()
-    return carrinho
-
-@app.get("/pedidos")
-def listar_pedidos():
-    db = SessionLocal()
-    pedidos = db.query(PedidoModel).all()
-    db.close()
-    return pedidos
-
-@app.post("/pedidos")
-def criar_pedido(pedido: Pedido):
-    db = SessionLocal()
-    db_pedido = PedidoModel(
-        usuario_id=pedido.usuario_id,
-        total=pedido.total,
-        status=pedido.status
-    )
-    db.add(db_pedido)
-    db.commit()
-    db.refresh(db_pedido)
-    db.close()
-    return {
-        "id": db_pedido.id,
-        "usuario_id": db_pedido.usuario_id,
-        "total": db_pedido.total,
-        "status": db_pedido.status
-    }
+    return {"mensagem": "Carrinho removido"}
