@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from database import SessionLocal, engine
+from schemas import UserCreate, UserLogin, UserResponse
 from models import (
     Base,
     Usuario,
@@ -29,32 +30,60 @@ def get_db():
 
 # ----------------- Auth -----------------
 
-@app.post("/register")
-def registrar(usuario: Usuario, db: Session = Depends(get_db)):
-    usuario_existente = db.query(UsuarioModel).filter(UsuarioModel.email == usuario.email).first()
+from fastapi import Depends, HTTPException
+from sqlalchemy.orm import Session
+from database import SessionLocal
+from models import User
+from schemas import UserCreate, UserResponse
+from auth import hash_senha
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@app.post("/register", response_model=UserResponse)
+def register(user: UserCreate, db: Session = Depends(get_db)):
+
+    # Verifica se email já existe
+    usuario_existente = db.query(User).filter(User.email == user.email).first()
     if usuario_existente:
         raise HTTPException(status_code=400, detail="Email já cadastrado")
 
-    novo_usuario = UsuarioModel(
-        email=usuario.email,
-        senha_hash=hash_senha(usuario.senha)
+    # Cria novo usuário
+    novo_usuario = User(
+        email=user.email,
+        senha=hash_senha(user.senha)
     )
+
     db.add(novo_usuario)
     db.commit()
-    return {"mensagem": "Usuário criado com sucesso"}
+    db.refresh(novo_usuario)
+
+    return novo_usuario
+
+from schemas import UserLogin
+from auth import verificar_senha, criar_token
+
 
 @app.post("/login")
-def login(usuario: Usuario, db: Session = Depends(get_db)):
-    db_usuario = db.query(UsuarioModel).filter(UsuarioModel.email == usuario.email).first()
+def login(user: UserLogin, db: Session = Depends(get_db)):
 
-    if not db_usuario:
-        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+    usuario = db.query(User).filter(User.email == user.email).first()
 
-    if not verificar_senha(usuario.senha, db_usuario.senha_hash):
-        raise HTTPException(status_code=401, detail="Senha incorreta")
+    if not usuario:
+        raise HTTPException(status_code=401, detail="Credenciais inválidas")
+
+    if not verificar_senha(user.senha, usuario.senha):
+        raise HTTPException(status_code=401, detail="Credenciais inválidas")
 
     token = criar_token({"sub": usuario.email})
-    return {"access_token": token}
+
+    return {"access_token": token, "token_type": "bearer"}
 
 # ----------------- Produtos -----------------
 
