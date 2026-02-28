@@ -1,13 +1,20 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, Float, ForeignKey
+from sqlalchemy.orm import DeclarativeBase
 from pydantic import BaseModel
 from typing import Optional
-from database import Base
 
-# ----------------- Pydantic Schemas -----------------
+class Base(DeclarativeBase):
+    pass
 
-class User(BaseModel):
+class Usuario(BaseModel):
     email: str
     senha: str
+
+class UsuarioModel(Base):
+    __tablename__ = "usuarios"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email = Column(String, unique=True)
+    senha_hash = Column(String)
 
 class Produto(BaseModel):
     nome: str
@@ -15,44 +22,32 @@ class Produto(BaseModel):
     estoque: int
     categoria: Optional[str] = None
 
+class ProdutoModel(Base):
+    __tablename__ = "produtos"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    nome = Column(String)
+    preco = Column(Float)
+    estoque = Column(Integer)
+    categoria = Column(String)
+
 class Carrinho(BaseModel):
     usuario_id: int
     produto_id: int
+
+class CarrinhoModel(Base):
+    __tablename__ = "carrinhos"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    usuario_id = Column(Integer, ForeignKey("usuarios.id"))
+    produto_id = Column(Integer, ForeignKey("produtos.id"))
 
 class Pedido(BaseModel):
     usuario_id: int
     total: float
     status: str
 
-# ----------------- SQLAlchemy Models -----------------
-
-class UserModel(Base):
-    __tablename__ = "usuarios"
-
-    id = Column(Integer, primary_key=True, index=True)
-    email = Column(String, unique=True, nullable=False)
-    senha_hash = Column(String, nullable=False)
-
-class ProdutoModel(Base):
-    __tablename__ = "produtos"
-
-    id = Column(Integer, primary_key=True, index=True)
-    nome = Column(String, nullable=False)
-    preco = Column(Float, nullable=False)
-    estoque = Column(Integer, nullable=False)
-    categoria = Column(String)
-
-class CarrinhoModel(Base):
-    __tablename__ = "carrinhos"
-
-    id = Column(Integer, primary_key=True, index=True)
-    usuario_id = Column(Integer, ForeignKey("usuarios.id"))
-    produto_id = Column(Integer, ForeignKey("produtos.id"))
-
 class PedidoModel(Base):
     __tablename__ = "pedidos"
-
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"))
     total = Column(Float)
     status = Column(String)

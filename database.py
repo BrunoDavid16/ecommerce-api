@@ -1,15 +1,10 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
-import os
+from sqlalchemy.orm import sessionmaker
+from models import Base
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./tasks.db")
+DATABASE_URL = "sqlite:///ecommerce.db"
+engine = create_engine(DATABASE_URL)
 
-engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
-)
+SessionLocal = sessionmaker(bind=engine)
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-class Base(DeclarativeBase):
-    pass
+Base.metadata.create_all(engine)
